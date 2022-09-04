@@ -6,6 +6,8 @@ from git_interface.datatypes import ArchiveTypes
 
 from .archive import ArchiverOptions, archive_repos
 
+logger = logging.getLogger("cli")
+
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -32,4 +34,6 @@ async def main():
         dry_run=args.dry_run,
     )
 
+    logger.info("archiver starting")
     await archive_repos(args.src, args.dst, options)
+    logger.info("archiver finished")

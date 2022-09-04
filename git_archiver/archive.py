@@ -42,11 +42,11 @@ async def archive_repos(src_path: Path, dst_path: Path, options: ArchiverOptions
             options.archive_type,
         )
 
-        logging.info(
+        logger.info(
             "started archiving '%s' to '%s'",
             repo_path, repo_dst_path,
         )
 
         await archive_repo(repo_src_path, repo_dst_path, options)
 
-        logging.info("done archiving '%s' to '%s'", repo_path, repo_dst_path)
+        logger.info("done archiving '%s' to '%s'", repo_path, repo_dst_path)
