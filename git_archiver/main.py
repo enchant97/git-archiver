@@ -25,6 +25,7 @@ async def main():
         choices=[type_.value for type_ in ArchiveTypes],
     )
     parser.add_argument("--branches", help="archive all branches", action="store_true")
+    parser.add_argument("--tags", help="archive all tags", action="store_true")
     parser.add_argument(
         "-n", "--dry-run", help="run archiver without doing the actual archive", action="store_true")
 
@@ -33,7 +34,8 @@ async def main():
     options = ArchiverOptions(
         archive_type=args.format,
         dry_run=args.dry_run,
-        branches=args.branches,
+        archive_branches=args.branches,
+        archive_tags=args.tags,
     )
 
     logger.info("archiver starting")
