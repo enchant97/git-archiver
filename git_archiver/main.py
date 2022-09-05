@@ -13,26 +13,30 @@ async def main():
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser(
-        "git_archiver", description="Designed to make archiving git bare repositories easy.")
+        "git_archiver",
+        usage="option [options ...]",
+        description="Designed to make archiving git bare repositories easy.",
+    )
     parser.add_argument(
-        "--src", help="where the git repos are", type=Path, required=True)
+        "--src", help="Path to directory of git repositories", type=Path, required=True)
     parser.add_argument(
-        "--dst", help="where to store archives", type=Path, required=True)
+        "--dst", help="Path to directory where the archive will be created", type=Path, required=True)
     parser.add_argument(
-        "--format", help="what format to use for archive",
+        "--format", help="What format to use for archive (tar is default)",
         default=ArchiveTypes.TAR,
         type=ArchiveTypes,
         choices=[type_.value for type_ in ArchiveTypes],
     )
     parser.add_argument(
-        "--branches", help="archive all branches", action="store_true")
-    parser.add_argument("--tags", help="archive all tags", action="store_true")
+        "--branches", help="Archive all branches", action="store_true")
+    parser.add_argument("--tags", help="Archive all tags", action="store_true")
     parser.add_argument(
-        "-n", "--dry-run", help="run archiver without doing the actual archive", action="store_true")
+        "-n", "--dry-run", help="Run archiver without doing the actual archive", action="store_true")
     parser.add_argument(
-        "--bundle", help="create git bundles for each repository", action="store_true")
+        "--bundle", help="Create git bundles for each repository", action="store_true")
     parser.add_argument(
-        "--skip", help="add repository paths to skip", nargs="+", type=Path, default=[])
+        "--skip", help="Add paths of repository directories to skip, " +
+        "must be relative the src", nargs="+", type=Path, default=[])
 
     args = parser.parse_args()
 
