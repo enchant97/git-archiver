@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools ~= 65.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "git-archiver"
+description = "A tool for mass archiving git repositories"
+requires-python = ">=3.10"
+dynamic = ["version", "readme", "dependencies"]
+
+[tool.setuptools]
+packages = ["git_archiver"]
+
+[tool.setuptools.dynamic]
+version = {attr = "git_archiver.__version__"}
+readme = {file = ["README.md"]}
+dependencies = {file = ["requirements.txt"]}
