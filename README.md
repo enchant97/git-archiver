@@ -14,6 +14,7 @@ dst/
                 main.<archive-type>
             tags/
             git-archiver.<archive-type>
+            git-archiver.bundle
 
 ```
 

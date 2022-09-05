@@ -24,11 +24,13 @@ async def main():
         type=ArchiveTypes,
         choices=[type_.value for type_ in ArchiveTypes],
     )
-    parser.add_argument("--branches", help="archive all branches", action="store_true")
+    parser.add_argument(
+        "--branches", help="archive all branches", action="store_true")
     parser.add_argument("--tags", help="archive all tags", action="store_true")
     parser.add_argument(
         "-n", "--dry-run", help="run archiver without doing the actual archive", action="store_true")
-
+    parser.add_argument(
+        "--bundle", help="create git bundles for each repository", action="store_true")
     args = parser.parse_args()
 
     options = ArchiverOptions(
@@ -36,6 +38,7 @@ async def main():
         dry_run=args.dry_run,
         archive_branches=args.branches,
         archive_tags=args.tags,
+        create_bundle=args.bundle,
     )
 
     logger.info("archiver starting")
