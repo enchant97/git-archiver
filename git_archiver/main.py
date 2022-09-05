@@ -31,6 +31,9 @@ async def main():
         "-n", "--dry-run", help="run archiver without doing the actual archive", action="store_true")
     parser.add_argument(
         "--bundle", help="create git bundles for each repository", action="store_true")
+    parser.add_argument(
+        "--skip", help="add repository paths to skip", nargs="+", type=Path)
+
     args = parser.parse_args()
 
     options = ArchiverOptions(
@@ -39,6 +42,7 @@ async def main():
         archive_branches=args.branches,
         archive_tags=args.tags,
         create_bundle=args.bundle,
+        skip_list=args.skip,
     )
 
     logger.info("archiver starting")

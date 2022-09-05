@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from aiofiles import open as aio_open
@@ -22,6 +22,7 @@ class ArchiverOptions:
     archive_branches: bool = False
     archive_tags: bool = False
     create_bundle: bool = False
+    skip_list: list = field(default_factory=list)
 
 
 # TODO use git-interface implementation, when available
@@ -52,6 +53,10 @@ async def archive_repo(src_path: Path, dst_path: Path, tree_ish: str, options: A
 
 async def archive_repos(src_path: Path, dst_path: Path, options: ArchiverOptions):
     for repo_path in find_repos(src_path):
+        if repo_path in options.skip_list:
+            logger.info("skipping '%s' as it is in skip list", repo_path)
+            continue
+
         repo_src_path = src_path / repo_path
 
         if await count_branches(repo_src_path) == 0:
