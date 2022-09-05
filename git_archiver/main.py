@@ -32,7 +32,7 @@ async def main():
     parser.add_argument(
         "--bundle", help="create git bundles for each repository", action="store_true")
     parser.add_argument(
-        "--skip", help="add repository paths to skip", nargs="+", type=Path)
+        "--skip", help="add repository paths to skip", nargs="+", type=Path, default=[])
 
     args = parser.parse_args()
 
