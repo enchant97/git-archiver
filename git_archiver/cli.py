@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 from pathlib import Path
 
@@ -9,7 +10,7 @@ from .archive import ArchiverOptions, run_archiver
 logger = logging.getLogger("cli")
 
 
-async def main():
+def main():
     parser = argparse.ArgumentParser(
         "git_archiver",
         usage="option [options ...]",
@@ -64,5 +65,5 @@ async def main():
     )
 
     logger.info("archiver starting")
-    await run_archiver(args.src, args.dst, options)
+    asyncio.run(run_archiver(args.src, args.dst, options))
     logger.info("archiver finished")
