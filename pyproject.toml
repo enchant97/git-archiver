@@ -8,6 +8,9 @@ description = "A tool for mass archiving git repositories"
 requires-python = ">=3.10"
 dynamic = ["version", "readme", "dependencies"]
 
+[project.scripts]
+git-archiver = "git_archiver.cli:main"
+
 [tool.setuptools]
 packages = ["git_archiver"]
 
