@@ -10,8 +10,6 @@ logger = logging.getLogger("cli")
 
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
-
     parser = argparse.ArgumentParser(
         "git_archiver",
         usage="option [options ...]",
@@ -44,8 +42,16 @@ async def main():
         type=int,
         default=3,
     )
+    parser.add_argument(
+        "--log-level",
+        help="What level to set for logging (defaults to INFO)",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+    )
 
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.getLevelName(args.log_level))
 
     options = ArchiverOptions(
         archive_type=args.format,
