@@ -4,7 +4,7 @@ from pathlib import Path
 
 from git_interface.datatypes import ArchiveTypes
 
-from .archive import ArchiverOptions, archive_repos
+from .archive import ArchiverOptions, run_archiver
 
 logger = logging.getLogger("cli")
 
@@ -37,6 +37,13 @@ async def main():
     parser.add_argument(
         "--skip", help="Add paths of repository directories to skip, " +
         "must be relative the src", nargs="+", type=Path, default=[])
+    parser.add_argument(
+        "--workers",
+        help="Number of asynchronous workers to use, " +
+        "changing this may reduce performance. Use with caution",
+        type=int,
+        default=3,
+    )
 
     args = parser.parse_args()
 
@@ -47,8 +54,9 @@ async def main():
         archive_tags=args.tags,
         create_bundle=args.bundle,
         skip_list=args.skip,
+        workers=args.workers,
     )
 
     logger.info("archiver starting")
-    await archive_repos(args.src, args.dst, options)
+    await run_archiver(args.src, args.dst, options)
     logger.info("archiver finished")
