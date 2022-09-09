@@ -18,6 +18,18 @@ dst/
 
 ```
 
+## Install
+The recommended way of installing is using [pipx](https://pypa.github.io/pipx/).
+
+```
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+
+pipx install git+https://github.com/enchant97/git-archiver.git
+
+git-archiver --help
+```
+
 ## License
 This project is Copyright (c) 2022 Leo Spratt, licences shown below:
 
