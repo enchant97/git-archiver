@@ -2,7 +2,6 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Awaitable
 
 from aiofiles import open as aio_open
 from git_interface.archive import get_archive_buffered
@@ -25,13 +24,6 @@ class ArchiverOptions:
     create_bundle: bool = False
     skip_list: list = field(default_factory=list),
     workers: int = 3,
-
-
-@dataclass
-class WorkerTask:
-    func: Awaitable
-    args: list = field(default_factory=list)
-    kwargs: dict = field(default_factory=dict)
 
 
 # TODO use git-interface implementation, when available
@@ -93,7 +85,7 @@ class RepositoryArchiver:
                     self._src_path,
                     self._options.archive_type,
                     tree_ish,
-                ):
+                    ):
                 await fo.write(chunk)
 
         logger.debug(
