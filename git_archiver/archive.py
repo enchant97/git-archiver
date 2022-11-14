@@ -45,105 +45,122 @@ async def create_bundle(git_repo: Path, dst_path: Path):
         raise GitException(stderr)
 
 
-def make_archive_name(name: str, archive_type: ArchiveTypes) -> str:
-    return f"{name}.{archive_type.value}"
-
-
-async def archive_repo_tree(src_path: Path, dst_path: Path, tree_ish: str, options: ArchiverOptions):
-    logger.info(
-        "started archiving '%s' to '%s' at '%s'",
-        src_path, dst_path, tree_ish
-    )
-    if options.dry_run:
-        _ = [_ async for _ in get_archive_buffered(src_path, options.archive_type, tree_ish)]
-    else:
-        dst_path.parent.mkdir(parents=True, exist_ok=True)
-
-        async with aio_open(dst_path, "wb") as fo:
-            async for chunk in get_archive_buffered(src_path, options.archive_type, tree_ish):
-                await fo.write(chunk)
-
-    logger.info(
-        "done archiving '%s' to '%s' at '%s'",
-        src_path, dst_path, tree_ish
-    )
-
-
-async def archive_repository(
-        root_path: Path,
-        src_path: Path,
-        dst_path: Path,
-        options: ArchiverOptions):
+class RepositoryArchiver:
     """
     Archive a single repository,
     using given options to determine what gets archived
-
-    Args:
-        root_path (Path): The root path
-        src_path (Path): The absolute path to the repo
-        dst_path (Path): Root path to store archives
-        options (ArchiverOptions): Archive settings
     """
-    if await count_branches(src_path) == 0:
-        logger.info(
-            "skipping '%s', as it has no branches", src_path)
-        return
+    _root_path: Path
+    _src_path: Path
+    _dst_path: Path
+    _options: ArchiverOptions
 
-    repo_name = src_path.stem
-    repo_dst_path = dst_path / src_path.relative_to(root_path)
+    _repo_name: str
+    _repo_dst_path: Path
 
-    if not options.dry_run:
+    def __init__(
+            self,
+            root_path: Path,
+            src_path: Path,
+            dst_path: Path,
+            options: ArchiverOptions):
+        """
+        Args:
+            root_path (Path): The root path
+            src_path (Path): The absolute path to the repo
+            dst_path (Path): Root path to store archives
+            options (ArchiverOptions): Archive settings
+        """
+        self._root_path = root_path
+        self._src_path = src_path
+        self._dst_path = dst_path
+        self._options = options
+
+        self._repo_name = self._src_path.stem
+        self._repo_dst_path = self._dst_path / self._src_path.relative_to(self._root_path)
+
+    def make_archive_name(self, name: str) -> str:
+        return f"{name}.{self._options.archive_type.value}"
+
+    async def _archive_tree(self, dst_path: Path, tree_ish: str):
         logger.debug(
-            "creating repo archive destination path at: '%s'", repo_dst_path)
-        repo_dst_path.mkdir(parents=True, exist_ok=True)
+            "started archiving '%s' to '%s' at '%s'",
+            self._src_path, dst_path, tree_ish,
+        )
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # archive HEAD
-    await archive_repo_tree(
-        src_path,
-        repo_dst_path /
-        make_archive_name(repo_name, options.archive_type),
-        "HEAD",
-        options,
-    )
+        async with aio_open(dst_path, "wb") as fo:
+            async for chunk in get_archive_buffered(
+                    self._src_path,
+                    self._options.archive_type,
+                    tree_ish,
+                ):
+                await fo.write(chunk)
 
-    # archive branches, if enabled
-    if options.archive_branches:
-        _, branches = await get_branches(src_path)
+        logger.debug(
+            "done archiving '%s' to '%s' at '%s'",
+            self._src_path, dst_path, tree_ish,
+        )
+
+    async def _archive_head(self):
+        await self._archive_tree(
+            self._repo_dst_path / self.make_archive_name(self._repo_name),
+            "HEAD",
+        )
+
+    async def _archive_branches(self):
+        _, branches = await get_branches(self._src_path)
 
         for branch in branches:
-            await archive_repo_tree(
-                src_path,
-                repo_dst_path / "branches" /
-                make_archive_name(branch, options.archive_type),
+            await self._archive_tree(
+                self._repo_dst_path / "branches" / self.make_archive_name(branch),
                 branch,
-                options,
             )
 
-    # archive tags, if enabled
-    if options.archive_tags:
-        tags = await list_tags(src_path)
+    async def _archive_tags(self):
+        tags = await list_tags(self._src_path)
 
         for tag in tags:
-            await archive_repo_tree(
-                src_path,
-                repo_dst_path / "tags" /
-                make_archive_name(tag, options.archive_type),
+            await self._archive_tree(
+                self._repo_dst_path / "tags" / self.make_archive_name(tag),
                 tag,
-                options,
             )
 
-    # create git bundle, if enabled
-    if options.create_bundle:
-        bundle_dst = repo_dst_path / (repo_name + ".bundle")
+    async def _archive_bundle(self):
+        bundle_dst = self._repo_dst_path / (self._repo_name + ".bundle")
 
-        logger.info("creating bundle of '%s' to '%s'", src_path, bundle_dst)
-        if not options.dry_run:
-            await create_bundle(src_path, bundle_dst.absolute())
-        logger.info("done creating bundle of '%s' to '%s'",
-                    src_path, bundle_dst)
+        await create_bundle(self._src_path, bundle_dst.absolute())
+
+    async def archive(self):
+        if await count_branches(self._src_path) == 0:
+            logger.info(
+                "skipping '%s', as it has no branches", self._src_path)
+            return
+
+        logger.debug(
+            "creating repo archive destination path at: '%s'", self._repo_dst_path)
+        self._repo_dst_path.mkdir(parents=True, exist_ok=True)
+
+        logger.info("archiving HEAD of '%s'", self._src_path)
+        await self._archive_head()
+
+        if self._options.archive_branches:
+            logger.info("archiving branches of '%s'", self._src_path)
+            await self._archive_branches()
+
+        if self._options.archive_tags:
+            logger.info("archiving tags of '%s'", self._src_path)
+            await self._archive_tags()
+
+        if self._options.create_bundle:
+            logger.info("archiving bundle of '%s'", self._src_path)
+            await self._archive_bundle()
 
 
 class ArchiverHandler:
+    """
+    Archive handler that will archive multiple repositories
+    """
     __work_queue: asyncio.Queue
     __workers: list
     __accept_work: bool = False
@@ -153,6 +170,12 @@ class ArchiverHandler:
     _options: ArchiverOptions
 
     def __init__(self, root_path: Path, dst_path: Path, options: ArchiverOptions):
+        """
+        Args:
+            root_path (Path): The root path
+            dst_path (Path): The absolute path to the repo
+            options (ArchiverOptions): Archive settings
+        """
         self.__work_queue = asyncio.Queue()
         self._root_path = root_path
         self._dst_path = dst_path
@@ -166,7 +189,13 @@ class ArchiverHandler:
                     src_path: Path = await self.__work_queue.get()
                     logger.debug("'%s' starting work on '%s'",
                                  worker_name, src_path)
-                    await archive_repository(self._root_path, src_path, self._dst_path, self._options)
+                    repo_archiver = RepositoryArchiver(
+                        self._root_path,
+                        src_path,
+                        self._dst_path,
+                        self._options,
+                    )
+                    await repo_archiver.archive()
                     logger.debug("'%s' completed work on '%s'",
                                  worker_name, src_path)
                 finally:
