@@ -20,7 +20,6 @@ logger = logging.getLogger("archiver")
 @dataclass
 class ArchiverOptions:
     archive_type: ArchiveTypes
-    dry_run: bool = False
     archive_branches: bool = False
     archive_tags: bool = False
     create_bundle: bool = False

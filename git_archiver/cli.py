@@ -46,8 +46,6 @@ def main():
         "--branches", help="Archive all branches", action="store_true")
     parser.add_argument("--tags", help="Archive all tags", action="store_true")
     parser.add_argument(
-        "-n", "--dry-run", help="Run archiver without doing the actual archive", action="store_true")
-    parser.add_argument(
         "--bundle", help="Create git bundles for each repository", action="store_true")
     parser.add_argument(
         "--skip", help="Add paths of repository directories to skip, " +
@@ -72,7 +70,6 @@ def main():
 
     options = ArchiverOptions(
         archive_type=args.format,
-        dry_run=args.dry_run,
         archive_branches=args.branches,
         archive_tags=args.tags,
         create_bundle=args.bundle,
