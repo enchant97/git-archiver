@@ -12,6 +12,8 @@ from git_interface.exceptions import GitException
 from git_interface.helpers import subprocess_run
 from git_interface.tag import list_tags
 
+from .exceptions import ArchiverRunning, ArchiverStopped
+
 logger = logging.getLogger("archiver")
 
 
@@ -47,7 +49,7 @@ def make_archive_name(name: str, archive_type: ArchiveTypes) -> str:
     return f"{name}.{archive_type.value}"
 
 
-async def archive_repo(src_path: Path, dst_path: Path, tree_ish: str, options: ArchiverOptions):
+async def archive_repo_tree(src_path: Path, dst_path: Path, tree_ish: str, options: ArchiverOptions):
     logger.info(
         "started archiving '%s' to '%s' at '%s'",
         src_path, dst_path, tree_ish
@@ -67,18 +69,21 @@ async def archive_repo(src_path: Path, dst_path: Path, tree_ish: str, options: A
     )
 
 
-async def archive_bundle(src_path: Path, dst_path: Path, options: ArchiverOptions):
-    logger.info("creating bundle of '%s' to '%s'", src_path, dst_path)
-    if not options.dry_run:
-        await create_bundle(src_path, dst_path.absolute())
-    logger.info("done creating bundle of '%s' to '%s'", src_path, dst_path)
-
-
 async def archive_repository(
         root_path: Path,
         src_path: Path,
         dst_path: Path,
         options: ArchiverOptions):
+    """
+    Archive a single repository,
+    using given options to determine what gets archived
+
+    Args:
+        root_path (Path): The root path
+        src_path (Path): The absolute path to the repo
+        dst_path (Path): Root path to store archives
+        options (ArchiverOptions): Archive settings
+    """
     if await count_branches(src_path) == 0:
         logger.info(
             "skipping '%s', as it has no branches", src_path)
@@ -93,7 +98,7 @@ async def archive_repository(
         repo_dst_path.mkdir(parents=True, exist_ok=True)
 
     # archive HEAD
-    await archive_repo(
+    await archive_repo_tree(
         src_path,
         repo_dst_path /
         make_archive_name(repo_name, options.archive_type),
@@ -106,7 +111,7 @@ async def archive_repository(
         _, branches = await get_branches(src_path)
 
         for branch in branches:
-            await archive_repo(
+            await archive_repo_tree(
                 src_path,
                 repo_dst_path / "branches" /
                 make_archive_name(branch, options.archive_type),
@@ -119,7 +124,7 @@ async def archive_repository(
         tags = await list_tags(src_path)
 
         for tag in tags:
-            await archive_repo(
+            await archive_repo_tree(
                 src_path,
                 repo_dst_path / "tags" /
                 make_archive_name(tag, options.archive_type),
@@ -130,11 +135,12 @@ async def archive_repository(
     # create git bundle, if enabled
     if options.create_bundle:
         bundle_dst = repo_dst_path / (repo_name + ".bundle")
-        await archive_bundle(
-            src_path,
-            bundle_dst,
-            options,
-        )
+
+        logger.info("creating bundle of '%s' to '%s'", src_path, bundle_dst)
+        if not options.dry_run:
+            await create_bundle(src_path, bundle_dst.absolute())
+        logger.info("done creating bundle of '%s' to '%s'",
+                    src_path, bundle_dst)
 
 
 class ArchiverHandler:
@@ -153,16 +159,20 @@ class ArchiverHandler:
         self._options = options
 
     async def __worker_func(self, worker_name: str):
-        while True:
-            try:
-                src_path: Path = await self.__work_queue.get()
-                logger.debug("'%s' starting work on '%s'",
-                             worker_name, src_path)
-                await archive_repository(self._root_path, src_path, self._dst_path, self._options)
-                logger.debug("'%s' completed work on '%s'",
-                             worker_name, src_path)
-            finally:
-                self.__work_queue.task_done()
+        logger.debug("'%s' waiting for work", worker_name)
+        try:
+            while True:
+                try:
+                    src_path: Path = await self.__work_queue.get()
+                    logger.debug("'%s' starting work on '%s'",
+                                 worker_name, src_path)
+                    await archive_repository(self._root_path, src_path, self._dst_path, self._options)
+                    logger.debug("'%s' completed work on '%s'",
+                                 worker_name, src_path)
+                finally:
+                    self.__work_queue.task_done()
+        finally:
+            logger.debug("'%s' stopping", worker_name)
 
     def __create_worker(self, i: int):
         return asyncio.create_task(self.__worker_func(f"archive-worker-{i}"))
@@ -170,17 +180,29 @@ class ArchiverHandler:
     async def push_repo(self, src_path: Path):
         """
         Add a new repo to archive from the file system
+
+        Args:
+            src_path (Path): The absolute path pointing to the repo,
+                             must be relative to the given root path
+
+        Raises:
+            ArchiverStopped: The archiver has been stopped,
+                             so new work cannot be added
         """
         if not self.__accept_work:
-            # HACK Make custom exception!
-            raise Exception("archiver is no longer accepting work")
+            raise ArchiverStopped("archiver is no longer accepting work")
 
         await self.__work_queue.put(src_path)
 
     def start(self):
+        """
+        Start the archiver, launches the async task workers
+
+        Raises:
+            ArchiverRunning: Archiver start method has already been called
+        """
         if self.__accept_work:
-            # HACK Make custom exception!
-            raise Exception("archiver has already been started")
+            raise ArchiverRunning("archiver has already been started")
 
         self.__accept_work = True
         self.__workers = [self.__create_worker(i)
@@ -189,8 +211,16 @@ class ArchiverHandler:
 
     async def stop(self):
         """
-        Shuts down the archiver safely, will wait for all tasks to complete
+        Stop the archiver, will wait for all tasks to complete
+
+        Raises:
+            ArchiverStopped: The archiver stop method has already been called
         """
+        if self.__accept_work is False:
+            raise ArchiverStopped(
+                "archiver has already been stopped, or was never started")
+
+        # ensure no new jobs get added
         self.__accept_work = False
 
         logger.debug("waiting for queue to empty")
@@ -201,4 +231,5 @@ class ArchiverHandler:
             worker.cancel()
         await asyncio.gather(*self.__workers, return_exceptions=True)
 
+        # remove references for async tasks, (can be collected by garbage collector)
         self.__workers = None
