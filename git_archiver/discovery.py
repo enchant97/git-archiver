@@ -1,16 +1,21 @@
+import logging
 from pathlib import Path
 
+logger = logging.getLogger("discovery")
 
-def find_repos(root_path: Path):
-    """
-    Discover git repositories from a given starting path.
 
-    Args:
-        root_path (Path): The path to search in
+class FileSystemDiscovery:
+    def __init__(self, root_path: Path, skip_list: list | None = None):
+        if skip_list is None:
+            skip_list = []
+        self._root_path = root_path
+        self._skip_list = skip_list
 
-    Yields:
-        Path: Each found repo, will be a relative to root
-    """
-    for path in root_path.rglob("*.git"):
-        if path.is_dir():
-            yield path.relative_to(root_path)
+    def __find_repos(self):
+        for path in self._root_path.rglob("*.git"):
+            if path.is_dir() and path not in self._skip_list:
+                logger.debug("found '%s'", path)
+                yield path.resolve()
+
+    def discover(self):
+        return self.__find_repos()

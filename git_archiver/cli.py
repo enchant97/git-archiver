@@ -5,9 +5,25 @@ from pathlib import Path
 
 from git_interface.datatypes import ArchiveTypes
 
-from .archive import ArchiverOptions, run_archiver
+from .archive import ArchiverOptions, ArchiverHandler
+from .discovery import FileSystemDiscovery
 
 logger = logging.getLogger("cli")
+
+
+async def run_archiver(src_path, dst_path, options):
+    archiver = ArchiverHandler(src_path, dst_path, options)
+    discovery = FileSystemDiscovery(src_path, options.skip_list)
+    # start async archive worker(s)
+    archiver.start()
+
+    # TODO: Currently blocks, discover() needs to be a async generator
+    for repo_path in discovery.discover():
+        await archiver.push_repo(repo_path)
+
+    # signal that there is no more work,
+    # and wait for all work to complete
+    await archiver.stop()
 
 
 def main():
