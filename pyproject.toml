@@ -29,5 +29,5 @@ packages = ["git_archiver"]
 
 [tool.setuptools.dynamic]
 version = {attr = "git_archiver.__version__"}
-readme = {file = ["README.md"]}
+readme = {file = ["README.md"], content-type = "text/markdown"}
 dependencies = {file = ["requirements.txt"]}
