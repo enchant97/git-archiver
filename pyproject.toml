@@ -5,6 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "git-archiver"
 description = "A tool for mass archiving git repositories"
+keywords = ["git", "scm", "archive"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: Apache Software License",
+    "Framework :: AsyncIO",
+    "Environment :: Console",
+    "Topic :: System :: Archiving",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Intended Audience :: System Administrators"
+]
 requires-python = ">=3.10"
 dynamic = ["version", "readme", "dependencies"]
 
