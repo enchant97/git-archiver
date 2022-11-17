@@ -11,11 +11,11 @@ dst/
     enchant97/
         git-archiver/
             branches/
-                main.<archive-type>
+                pre.<archive-type>
             tags/
-            git-archiver.<archive-type>
-            git-archiver.bundle
-
+            all.bundle
+            HEAD.<archive-type>
+            meta.json
 ```
 
 ## Install

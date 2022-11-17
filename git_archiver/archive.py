@@ -9,9 +9,11 @@ from git_interface.branch import count_branches, get_branches
 from git_interface.datatypes import ArchiveTypes
 from git_interface.exceptions import GitException
 from git_interface.helpers import subprocess_run
+from git_interface.log import get_logs
 from git_interface.tag import list_tags
 
 from .exceptions import ArchiverRunning, ArchiverStopped
+from .meta import ArchiveMeta, ArchiveMetaTree
 
 logger = logging.getLogger("archiver")
 
@@ -48,6 +50,7 @@ class RepositoryArchiver:
 
     _repo_name: str
     _repo_dst_path: Path
+    _archive_meta: ArchiveMeta
 
     def __init__(
             self,
@@ -68,10 +71,20 @@ class RepositoryArchiver:
         self._options = options
 
         self._repo_name = self._src_path.stem
-        self._repo_dst_path = self._dst_path / self._src_path.relative_to(self._root_path)
+        self._repo_dst_path = self._dst_path / \
+            self._src_path.relative_to(self._root_path).with_suffix("")
+
+        self._archive_meta = ArchiveMeta(
+            name=self._repo_name,
+            archive_type=self._options.archive_type,
+        )
 
     def make_archive_name(self, name: str) -> str:
         return f"{name}.{self._options.archive_type.value}"
+
+    async def get_tree_meta(self, tree_ish: str | None = None) -> ArchiveMetaTree:
+        log = next(await get_logs(self._src_path, branch=tree_ish, max_number=1))
+        return ArchiveMetaTree.from_log(log)
 
     async def _archive_tree(self, dst_path: Path, tree_ish: str):
         logger.debug(
@@ -85,7 +98,7 @@ class RepositoryArchiver:
                     self._src_path,
                     self._options.archive_type,
                     tree_ish,
-                    ):
+            ):
                 await fo.write(chunk)
 
         logger.debug(
@@ -95,18 +108,21 @@ class RepositoryArchiver:
 
     async def _archive_head(self):
         await self._archive_tree(
-            self._repo_dst_path / self.make_archive_name(self._repo_name),
+            self._repo_dst_path / self.make_archive_name("HEAD"),
             "HEAD",
         )
+        self._archive_meta.head = await self.get_tree_meta()
 
     async def _archive_branches(self):
         _, branches = await get_branches(self._src_path)
 
         for branch in branches:
             await self._archive_tree(
-                self._repo_dst_path / "branches" / self.make_archive_name(branch),
+                self._repo_dst_path / "branches" /
+                self.make_archive_name(branch),
                 branch,
             )
+            self._archive_meta.branches[branch] = await self.get_tree_meta(branch)
 
     async def _archive_tags(self):
         tags = await list_tags(self._src_path)
@@ -116,11 +132,17 @@ class RepositoryArchiver:
                 self._repo_dst_path / "tags" / self.make_archive_name(tag),
                 tag,
             )
+            self._archive_meta.tags[tag] = await self.get_tree_meta(tag)
 
     async def _archive_bundle(self):
-        bundle_dst = self._repo_dst_path / (self._repo_name + ".bundle")
+        bundle_dst = self._repo_dst_path / "all.bundle"
 
         await create_bundle(self._src_path, bundle_dst.absolute())
+        self._archive_meta.has_bundle = True
+
+    async def write_meta(self):
+        async with aio_open(self._repo_dst_path / "meta.json", "wt") as fo:
+            await fo.write(self._archive_meta.dumps())
 
     async def archive(self):
         if await count_branches(self._src_path) == 0:
@@ -146,6 +168,8 @@ class RepositoryArchiver:
         if self._options.create_bundle:
             logger.info("archiving bundle of '%s'", self._src_path)
             await self._archive_bundle()
+
+        await self.write_meta()
 
 
 class ArchiverHandler:
@@ -176,21 +200,21 @@ class ArchiverHandler:
         logger.debug("'%s' waiting for work", worker_name)
         try:
             while True:
-                try:
-                    src_path: Path = await self.__work_queue.get()
-                    logger.debug("'%s' starting work on '%s'",
-                                 worker_name, src_path)
-                    repo_archiver = RepositoryArchiver(
-                        self._root_path,
-                        src_path,
-                        self._dst_path,
-                        self._options,
-                    )
-                    await repo_archiver.archive()
-                    logger.debug("'%s' completed work on '%s'",
-                                 worker_name, src_path)
-                finally:
-                    self.__work_queue.task_done()
+                src_path: Path = await self.__work_queue.get()
+                logger.debug("'%s' starting work on '%s'",
+                             worker_name, src_path)
+                repo_archiver = RepositoryArchiver(
+                    self._root_path,
+                    src_path,
+                    self._dst_path,
+                    self._options,
+                )
+                await repo_archiver.archive()
+                logger.debug("'%s' completed work on '%s'",
+                             worker_name, src_path)
+                self.__work_queue.task_done()
+        except asyncio.exceptions.CancelledError:
+            pass
         finally:
             logger.debug("'%s' stopping", worker_name)
 
@@ -249,7 +273,7 @@ class ArchiverHandler:
         logger.debug("stopping all workers")
         for worker in self.__workers:
             worker.cancel()
-        await asyncio.gather(*self.__workers, return_exceptions=True)
+        await asyncio.gather(*self.__workers, return_exceptions=False)
 
         # remove references for async tasks, (can be collected by garbage collector)
         self.__workers = None
