@@ -80,17 +80,43 @@ class RepositoryArchiver:
         )
 
     def make_archive_name(self, name: str) -> str:
+        """
+        Create an archive base name.
+
+        Args:
+            name (str): The name of the archive
+
+        Returns:
+            str: The full archive name
+        """
         return f"{name}.{self._options.archive_type.value}"
 
     async def get_tree_meta(self, tree_ish: str | None = None) -> ArchiveMetaTree:
+        """
+        Get a repositories tree metadata, defaults to HEAD
+
+        Args:
+            tree_ish (str | None, optional): The tree-ish to use. Defaults to None.
+
+        Returns:
+            ArchiveMetaTree: The created metadata
+        """
         log = next(await get_logs(self._src_path, branch=tree_ish, max_number=1))
         return ArchiveMetaTree.from_log(log)
 
     async def _archive_tree(self, dst_path: Path, tree_ish: str):
+        """
+        Produces an archive from the given tree-ish
+
+        Args:
+            dst_path (Path): Where to store the archive
+            tree_ish (str): The tree-ish to archive
+        """
         logger.debug(
             "started archiving '%s' to '%s' at '%s'",
             self._src_path, dst_path, tree_ish,
         )
+
         dst_path.parent.mkdir(parents=True, exist_ok=True)
 
         async with aio_open(dst_path, "wb") as fo:
@@ -107,6 +133,9 @@ class RepositoryArchiver:
         )
 
     async def _archive_head(self):
+        """
+        Produces archive of HEAD branch in the repository
+        """
         await self._archive_tree(
             self._repo_dst_path / self.make_archive_name("HEAD"),
             "HEAD",
@@ -114,6 +143,9 @@ class RepositoryArchiver:
         self._archive_meta.head = await self.get_tree_meta()
 
     async def _archive_branches(self):
+        """
+        Produces archives of all branches (apart from the HEAD) in the repository
+        """
         _, branches = await get_branches(self._src_path)
 
         for branch in branches:
@@ -125,6 +157,9 @@ class RepositoryArchiver:
             self._archive_meta.branches[branch] = await self.get_tree_meta(branch)
 
     async def _archive_tags(self):
+        """
+        Produces archives of all tags in the repository
+        """
         tags = await list_tags(self._src_path)
 
         for tag in tags:
@@ -135,16 +170,25 @@ class RepositoryArchiver:
             self._archive_meta.tags[tag] = await self.get_tree_meta(tag)
 
     async def _archive_bundle(self):
+        """
+        Produces a git-bundle of the repository
+        """
         bundle_dst = self._repo_dst_path / "all.bundle"
 
         await create_bundle(self._src_path, bundle_dst.absolute())
         self._archive_meta.has_bundle = True
 
-    async def write_meta(self):
+    async def _write_meta(self):
+        """
+        Write the archive metadata file, called on completion
+        """
         async with aio_open(self._repo_dst_path / "meta.json", "wt") as fo:
             await fo.write(self._archive_meta.dumps())
 
     async def archive(self):
+        """
+        Start archiving the set src repository into the set dst path
+        """
         if await count_branches(self._src_path) == 0:
             logger.info(
                 "skipping '%s', as it has no branches", self._src_path)
@@ -169,7 +213,7 @@ class RepositoryArchiver:
             logger.info("archiving bundle of '%s'", self._src_path)
             await self._archive_bundle()
 
-        await self.write_meta()
+        await self._write_meta()
 
 
 class ArchiverHandler:

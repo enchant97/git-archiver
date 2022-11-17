@@ -18,4 +18,7 @@ class FileSystemDiscovery:
                 yield path.resolve()
 
     def discover(self):
+        """
+        Yields discovered repository paths, will be absolute
+        """
         return self.__find_repos()
