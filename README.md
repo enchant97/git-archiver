@@ -19,27 +19,32 @@ dst/
 ```
 
 ## Install
-There are many ways of installing and running a Python app. These are the recommended methods.
+There are many ways of installing and running this app.
 
-### pipx
-[pipx](https://pypa.github.io/pipx/) is used when you want it installed on the system for a user.
+### pipx (Recommended)
+Install using [pipx](https://pypa.github.io/pipx/), allowing for a self contained user install.
+
+> This will require Python to be installed.
 
 ```
-python3 -m pip install --user pipx
-python3 -m pipx ensurepath
-
-pipx install git+https://github.com/enchant97/git-archiver.git
-
-git-archiver --help
+pipx install git-archiver
 ```
 
-## Docker
+### Native Executable
+This is the easiest way of using/distributing. Currently you will have to build an executable yourself, documented in the building section.
+
+### Docker
 This method allows running the program inside a docker container.
 
 ```
-docker build -t git-archiver .
+docker run --rm -it ghcr.io/enchant97/git-archiver <archiver args here>
+```
 
-docker run --rm -it git-archiver <app args here>
+## Building
+You can simply run the makefile to produce different builds.
+
+```
+make help
 ```
 
 ## License
