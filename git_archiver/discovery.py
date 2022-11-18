@@ -1,11 +1,19 @@
 import logging
 from pathlib import Path
 
+from .exceptions import PathNotAbsolute
+
 logger = logging.getLogger("discovery")
 
 
 class FileSystemDiscovery:
+    """
+    Discover git repositories inside given root path
+    """
     def __init__(self, root_path: Path, skip_list: list | None = None):
+        if not root_path.is_absolute():
+            raise PathNotAbsolute("root_path must be a absolute path")
+
         if skip_list is None:
             skip_list = []
         self._root_path = root_path

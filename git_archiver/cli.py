@@ -5,13 +5,20 @@ from pathlib import Path
 
 from git_interface.datatypes import ArchiveTypes
 
-from .archive import ArchiverOptions, ArchiverHandler
+from .archive import ArchiverHandler, ArchiverOptions
 from .discovery import FileSystemDiscovery
 
 logger = logging.getLogger("cli")
 
 
-async def run_archiver(src_path, dst_path, options):
+async def run_archiver(src_path: Path, dst_path: Path, options: ArchiverOptions):
+    # ensure all paths are absolute
+    src_path = src_path.resolve()
+    dst_path = dst_path.resolve()
+    if options.skip_list:
+        # NOTE: this is faster than list(map(lambda ...))
+        options.skip_list = [path.resolve() for path in options.skip_list]
+
     archiver = ArchiverHandler(src_path, dst_path, options)
     discovery = FileSystemDiscovery(src_path, options.skip_list)
     # start async archive worker(s)

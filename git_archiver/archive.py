@@ -12,7 +12,7 @@ from git_interface.helpers import subprocess_run
 from git_interface.log import get_logs
 from git_interface.tag import list_tags
 
-from .exceptions import ArchiverRunning, ArchiverStopped
+from .exceptions import ArchiverRunning, ArchiverStopped, PathNotAbsolute
 from .meta import ArchiveMeta, ArchiveMetaTree
 
 logger = logging.getLogger("archiver")
@@ -231,10 +231,15 @@ class ArchiverHandler:
     def __init__(self, root_path: Path, dst_path: Path, options: ArchiverOptions):
         """
         Args:
-            root_path (Path): The root path
-            dst_path (Path): The absolute path to the repo
+            root_path (Path): The absolute root path
+            dst_path (Path): The absolute path to store archives
             options (ArchiverOptions): Archive settings
         """
+        if not root_path.is_absolute():
+            raise PathNotAbsolute("root_path must be a absolute path")
+        if not dst_path.is_absolute():
+            raise PathNotAbsolute("dst_path must be a absolute path")
+
         self.__work_queue = asyncio.Queue()
         self._root_path = root_path
         self._dst_path = dst_path
